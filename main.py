@@ -20,7 +20,7 @@ def setup_argparse():
     parser.add_argument("--wait_for_response", type=float, default=5, help="Wait time for response after knocking sequence is complete")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
 
-    return parser.parse_args()
+    return parser
 
 def knock_ports(target_host, knock_ports, timeout, delay):
     """
@@ -36,13 +36,14 @@ def knock_ports(target_host, knock_ports, timeout, delay):
         for port in knock_ports:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:  # Using TCP for knocking
                 sock.settimeout(timeout)
+                logging.info(f"Knock attempt on port {port} on {target_host}")
                 try:
                     sock.connect((target_host, port))
                     logging.info(f"Knocking on port {port} on {target_host}")
                 except socket.timeout:
-                    logging.warning(f"Connection to port {port} on {target_host} timed out.")
-                except socket.error as e:
-                    logging.error(f"Error connecting to port {port} on {target_host}: {e}")
+                    logging.info(f"Knock attempt on port {port} on {target_host} completed: no reply (closed or filtered port, the normal case).")
+                except socket.error:
+                    logging.info(f"Knock attempt on port {port} on {target_host} completed: connection refused or unreachable (closed or filtered port, the normal case).")
                 time.sleep(delay)
     except Exception as e:
         logging.error(f"An unexpected error occurred during port knocking: {e}")
@@ -143,7 +144,7 @@ def main():
         logging.debug("Verbose output enabled.")
 
     target_host = args.target_host
-    knock_ports = args.knock_ports
+    knock_port_list = args.knock_ports
     hidden_port = args.hidden_port
     timeout = args.timeout
     delay = args.delay
@@ -152,7 +153,7 @@ def main():
     logging.info(f"Starting port knocking detection on {target_host}")
 
     try:
-        knock_ports(target_host, knock_ports, timeout, delay)
+        knock_ports(target_host, knock_port_list, timeout, delay)
         logging.info(f"Waiting {wait_for_response} seconds for a response on the hidden port {hidden_port}...")
         time.sleep(wait_for_response)
         if check_hidden_port(target_host, hidden_port, timeout):
