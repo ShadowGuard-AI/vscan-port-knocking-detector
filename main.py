@@ -34,6 +34,11 @@ def knock_ports(target_host, knock_ports, timeout, delay):
     """
     try:
         for port in knock_ports:
+            # Knocks are full TCP connection attempts. There is no UDP
+            # mode anywhere, so a sequence defined over UDP ports
+            # cannot be tested by this tool at all, and a filtered TCP
+            # port costs a whole timeout per knock before the sequence
+            # moves on.
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:  # Using TCP for knocking
                 sock.settimeout(timeout)
                 logging.info(f"Knock attempt on port {port} on {target_host}")
@@ -153,9 +158,17 @@ def main():
     logging.info(f"Starting port knocking detection on {target_host}")
 
     try:
+        # Nobody checks the hidden port before the sequence runs. If
+        # it was already open, the check below passes and the run
+        # reports port knocking where there may be none at all. A
+        # detector needs the before state to claim the knock changed
+        # anything, and this one never takes it.
         knock_ports(target_host, knock_port_list, timeout, delay)
         logging.info(f"Waiting {wait_for_response} seconds for a response on the hidden port {hidden_port}...")
         time.sleep(wait_for_response)
+        # Exactly one check, after one fixed wait. A daemon that opens
+        # the port briefly and closes it again inside that window, or
+        # one slower than the wait, is reported as no knocking found.
         if check_hidden_port(target_host, hidden_port, timeout):
             logging.info("Port knocking successful! Hidden port is open.")
         else:
