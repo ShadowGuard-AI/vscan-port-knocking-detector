@@ -158,11 +158,12 @@ def main():
     logging.info(f"Starting port knocking detection on {target_host}")
 
     try:
-        # Nobody checks the hidden port before the sequence runs. If
-        # it was already open, the check below passes and the run
-        # reports port knocking where there may be none at all. A
-        # detector needs the before state to claim the knock changed
-        # anything, and this one never takes it.
+        # Check the hidden port before the sequence runs. If it was
+        # already open, an open result afterwards proves nothing about
+        # port knocking, so that case is reported separately.
+        hidden_open_before = check_hidden_port(target_host, hidden_port, timeout)
+        if hidden_open_before:
+            logging.warning(f"Hidden port {hidden_port} on {target_host} is already open before the knock sequence.")
         knock_ports(target_host, knock_port_list, timeout, delay)
         logging.info(f"Waiting {wait_for_response} seconds for a response on the hidden port {hidden_port}...")
         time.sleep(wait_for_response)
@@ -170,7 +171,10 @@ def main():
         # the port briefly and closes it again inside that window, or
         # one slower than the wait, is reported as no knocking found.
         if check_hidden_port(target_host, hidden_port, timeout):
-            logging.info("Port knocking successful! Hidden port is open.")
+            if hidden_open_before:
+                logging.info("Hidden port is open, but it was already open before the knock sequence, so port knocking is not demonstrated by this run.")
+            else:
+                logging.info("Port knocking successful! Hidden port is open.")
         else:
             logging.info("Port knocking unsuccessful. Hidden port is closed.")
 
